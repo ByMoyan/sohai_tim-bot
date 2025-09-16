@@ -126,7 +126,7 @@ function createBot() {
         bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position)
       )[0];
 
-      const targetPos = target.position.offset(0, (target.height || 1) * 0.8, 0);
+      const targetPos = target.position.offset(0, (target.height || 1) * 0.7, 0);
       const dx = targetPos.x - bot.entity.position.x;
       const dy = targetPos.y - (bot.entity.position.y + (bot.entity.height || 1));
       const dz = targetPos.z - bot.entity.position.z;
