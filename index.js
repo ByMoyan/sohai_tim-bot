@@ -186,15 +186,24 @@ function createBot() {
     if (attackInterval) clearInterval(attackInterval);
     let lastAttackTime = 0;
     const COOLDOWN = 1000;
+    const ATTACK_RANGE = 4;
 
     attackInterval = setInterval(() => {
       if (!bot || !bot.entity || isEating) return;
-      const skeleton = Object.values(bot.entities).find(e =>
+
+      const nearbySkeletons = Object.values(bot.entities).filter(e =>
         e.type === 'mob' && e.name === 'skeleton' &&
-        bot.entity.position.distanceTo(e.position) <= 3
+        bot.entity.position.distanceTo(e.position) <= ATTACK_RANGE
       );
-      if (skeleton && Date.now() - lastAttackTime > COOLDOWN) {
-        bot.attack(skeleton, true);
+
+      if (!nearbySkeletons.length) return;
+
+      const nearest = nearbySkeletons.sort((a, b) =>
+        bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position)
+      )[0];
+
+      if (Date.now() - lastAttackTime > COOLDOWN) {
+        bot.attack(nearest, true);
         attackCount++;
         lastAttackTime = Date.now();
       }
