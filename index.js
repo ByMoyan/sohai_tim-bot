@@ -4,20 +4,21 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 let bot = null;
+let backupBot = null;
 let hasLoggedReconnect = false;
+let reconnectAttempts = 0;
+
 let attackInterval = null;
 let lookInterval = null;
 let minecartInterval = null;
 let nightInterval = null;
 let autoEatInterval = null;
+
 let isEating = false;
 let nightMessageSent = false;
 let attackCount = 0;
-const onlinePlayers = new Set();
 
-let reconnectCount = 0;
-let backupBot = null;
-let pauseMainBotReconnect = false;
+const onlinePlayers = new Set();
 
 // ---- HTTP 保活 ----
 app.get('/', (req, res) => {
@@ -27,7 +28,6 @@ app.listen(PORT, () => {
   console.log(`[系统] HTTP 服务启动 端口 ${PORT}`);
 });
 
-// ---- 启动主机器人 ----
 function createBot() {
   bot = mineflayer.createBot({
     host: '87world.aternos.me',
@@ -35,6 +35,7 @@ function createBot() {
     username: 'sohai_tim'
   });
 
+  // ---- 上线事件 ----
   bot.on('spawn', () => {
     console.log('［系统］sohai_tim 加入了游戏');
     startLookLoop();
@@ -44,36 +45,38 @@ function createBot() {
     startNightCheckLoop();
   });
 
-  bot.on('error', (err) => {
-    console.log('［错误］类型:', err.name);
-    console.log('［错误］原因:', err.message);
-  });
+  // ---- 错误处理 ----
+  bot.on('error', () => {}); // 不输出错误
 
+  // ---- 断线重连 ----
   bot.on('end', () => {
     console.log('［系统］sohai_tim 离开了游戏');
     hasLoggedReconnect = false;
+    reconnectAttempts++;
+
+    // 清理循环
     if (attackInterval) clearInterval(attackInterval);
     if (lookInterval) clearInterval(lookInterval);
     if (minecartInterval) clearInterval(minecartInterval);
     if (nightInterval) clearInterval(nightInterval);
 
-    reconnectCount++;
-
-    if (reconnectCount >= 3 && !backupBot) {
+    // 连续重连三次触发备用机器人
+    if (reconnectAttempts >= 3 && !backupBot) {
+      console.log('［系统］准备派出sohai_tim2');
       createBackupBot();
+      return; // 暂停主bot重连
     }
 
-    if (!pauseMainBotReconnect) {
-      setTimeout(() => {
-        if (!hasLoggedReconnect) {
-          console.log('［系统］断线重连回复中...');
-          hasLoggedReconnect = true;
-        }
-        createBot();
-      }, 10000);
-    }
+    setTimeout(() => {
+      if (!hasLoggedReconnect) {
+        console.log('［系统］断线重连回复中...');
+        hasLoggedReconnect = true;
+      }
+      createBot();
+    }, 10000);
   });
 
+  // ---- 聊天监听 ----
   bot.on('chat', (username, message) => {
     console.log(`［系统］<${username}> ${message}`);
     if (message.toLowerCase() === 'zzz') {
@@ -82,7 +85,10 @@ function createBot() {
     }
   });
 
-  bot.on('message', (msg) => {
+  // ---- 玩家加入/离开侦测 ----
+  bot.on('message', handlePlayerJoinLeave);
+
+  function handlePlayerJoinLeave(msg) {
     const text = msg.toString();
     if (text.includes("joined the game")) {
       const playerName = text.split(" ")[0];
@@ -92,9 +98,7 @@ function createBot() {
         console.log(`［系统］${playerName} 加入了游戏`);
         const time = bot.time.timeOfDay;
         const isNight = time >= 12542 && time <= 23000;
-        if (isNight && nightMessageSent) {
-          bot.chat(`${playerName}上线！ 当前为晚上，要睡觉喊我一声zzz！`);
-        }
+        if (isNight && nightMessageSent) bot.chat(`${playerName}上线！ 当前为晚上，要睡觉喊我一声zzz！`);
       }
     }
     if (text.includes("left the game")) {
@@ -105,7 +109,7 @@ function createBot() {
         console.log(`［系统］${playerName} 离开了游戏`);
       }
     }
-  });
+  }
 
   // ---- 平滑看向生物 ----
   function startLookLoop(turnSpeed = 3) {
@@ -122,7 +126,7 @@ function createBot() {
       const target = nearbyEntities.sort((a, b) =>
         bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position)
       )[0];
-      const targetPos = target.position.offset(0, (target.height || 1) * 0.8, 0);
+      const targetPos = target.position.offset(0, (target.height || 1) * 0.7, 0);
       const dx = targetPos.x - bot.entity.position.x;
       const dy = targetPos.y - (bot.entity.position.y + (bot.entity.height || 1));
       const dz = targetPos.z - bot.entity.position.z;
@@ -179,14 +183,20 @@ function createBot() {
     if (attackInterval) clearInterval(attackInterval);
     let lastAttackTime = 0;
     const COOLDOWN = 1000;
+    const ATTACK_RANGE = 4;
+
     attackInterval = setInterval(() => {
       if (!bot || !bot.entity || isEating) return;
-      const skeleton = Object.values(bot.entities).find(e =>
+      const nearbySkeletons = Object.values(bot.entities).filter(e =>
         e.type === 'mob' && e.name === 'skeleton' &&
-        bot.entity.position.distanceTo(e.position) <= 3
+        bot.entity.position.distanceTo(e.position) <= ATTACK_RANGE
       );
-      if (skeleton && Date.now() - lastAttackTime > COOLDOWN) {
-        bot.attack(skeleton, true);
+      if (!nearbySkeletons.length) return;
+      const nearest = nearbySkeletons.sort((a, b) =>
+        bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position)
+      )[0];
+      if (Date.now() - lastAttackTime > COOLDOWN) {
+        bot.attack(nearest, true);
         attackCount++;
         lastAttackTime = Date.now();
       }
@@ -218,10 +228,8 @@ function createBot() {
   }
 }
 
-// ---- 创建备用机器人 ----
+// ---- 备用机器人 ----
 function createBackupBot() {
-  pauseMainBotReconnect = true;
-
   backupBot = mineflayer.createBot({
     host: '87world.aternos.me',
     port: 15945,
@@ -230,41 +238,38 @@ function createBackupBot() {
 
   backupBot.on('spawn', async () => {
     console.log('［系统］sohai_tim2 加入了游戏');
-
+    await sleep(1000);
     backupBot.chat('SB Aternos');
     await sleep(1000);
     backupBot.chat('/pradon sohai_tim');
     await sleep(1000);
     backupBot.chat('溜了 白白！');
+    setTimeout(() => backupBot.end(), 2000);
   });
 
-  backupBot.on('chat', (username, message) => {
-    console.log(`［系统］<${username}> ${message}`);
-  });
-
-  backupBot.on('message', (msg) => {
-    const text = msg.toString();
-    if (text.includes("joined the game")) {
-      const playerName = text.split(" ")[0];
-      if (playerName === backupBot.username) return;
-      console.log(`［系统］${playerName} 加入了游戏`);
-    }
-    if (text.includes("left the game")) {
-      const playerName = text.split(" ")[0];
-      if (playerName === backupBot.username) return;
-      console.log(`［系统］${playerName} 离开了游戏`);
-    }
-  });
+  backupBot.on('error', () => {}); // 不输出错误
 
   backupBot.on('end', () => {
     console.log('［系统］sohai_tim2 离开了游戏');
     backupBot = null;
-    pauseMainBotReconnect = false;
+    reconnectAttempts = 0;
+    setTimeout(() => createBot(), 1000); // 恢复主bot重连
+  });
 
-    if (!bot || !bot.entity) {
-      createBot();
+  backupBot.on('chat', (username, message) => console.log(`［系统］<${username}> ${message}`));
+  backupBot.on('message', msg => {
+    const text = msg.toString();
+    if (text.includes("joined the game")) {
+      console.log(`［系统］${text.split(" ")[0]} 加入了游戏`);
+    }
+    if (text.includes("left the game")) {
+      console.log(`［系统］${text.split(" ")[0]} 离开了游戏`);
     }
   });
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
 }
 
 // ---- 启动主机器人 ----
