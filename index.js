@@ -19,11 +19,6 @@ let attackCount = 0;
 
 const onlinePlayers = new Set();
 
-// ---- 全局 sleep 函数 ----
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 // ---- HTTP 保活 ----
 app.get('/', (req, res) => {
   res.send('你妈妈来喽！');
@@ -32,7 +27,12 @@ app.listen(PORT, () => {
   console.log(`[系统] HTTP 服务启动 端口 ${PORT}`);
 });
 
-// ---- 主 bot ----
+// ---- sleep 辅助 ----
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ---- 主 Bot ----
 function createBot() {
   bot = mineflayer.createBot({
     host: '87world.aternos.me',
@@ -40,9 +40,10 @@ function createBot() {
     username: 'sohai_tim'
   });
 
+  // ---- 上线事件 ----
   bot.on('spawn', () => {
     console.log('［系统］sohai_tim 加入了游戏');
-    failCount = 0;
+    failCount = 0; // 成功上线清零
     startLookLoop();
     startMinecartLoop();
     startAutoEatLoop();
@@ -50,12 +51,14 @@ function createBot() {
     startNightCheckLoop();
   });
 
+  // ---- 错误处理 ----
   bot.on('error', (err) => {
     console.log('［错误］类型:', err.name);
     console.log('［错误］原因:', err.message);
   });
 
-  bot.on('end', () => {
+  // ---- 断线重连 ----
+  bot.on('end', async () => {
     console.log('［系统］sohai_tim 离开了游戏');
 
     // 清理循环
@@ -66,7 +69,8 @@ function createBot() {
 
     failCount++;
     if (failCount >= 3) {
-      createBackupBot(); // 三次失败派出备用
+      console.log('［系统］准备派出 sohai_tim2 救场');
+      await createBackupBot();
       failCount = 0;
       return;
     }
@@ -80,6 +84,7 @@ function createBot() {
     }, 10000);
   });
 
+  // ---- 聊天监听 ----
   bot.on('chat', (username, message) => {
     console.log(`［系统］<${username}> ${message}`);
     if (message.toLowerCase() === 'zzz') {
@@ -88,16 +93,15 @@ function createBot() {
     }
   });
 
+  // ---- 玩家加入/离开侦测 ----
   bot.on('message', (msg) => {
     const text = msg.toString();
-
     if (text.includes("joined the game")) {
       const playerName = text.split(" ")[0];
       if (playerName === bot.username) return;
       if (!onlinePlayers.has(playerName)) {
         onlinePlayers.add(playerName);
         console.log(`［系统］${playerName} 加入了游戏`);
-
         const time = bot.time.timeOfDay;
         const isNight = time >= 12542 && time <= 23000;
         if (isNight && nightMessageSent) {
@@ -105,7 +109,6 @@ function createBot() {
         }
       }
     }
-
     if (text.includes("left the game")) {
       const playerName = text.split(" ")[0];
       if (playerName === bot.username) return;
@@ -128,22 +131,17 @@ function createBot() {
         !(e.type === 'mob' && e.name === 'minecart' && e.passengers?.length > 0)
       );
       if (!nearbyEntities.length) return;
-
       const target = nearbyEntities.sort((a, b) =>
         bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position)
       )[0];
-
-      const targetPos = target.position.offset(0, (target.height || 1) * 0.7, 0);
+      const targetPos = target.position.offset(0, (target.height || 1) * 0.8, 0);
       const dx = targetPos.x - bot.entity.position.x;
       const dy = targetPos.y - (bot.entity.position.y + (bot.entity.height || 1));
       const dz = targetPos.z - bot.entity.position.z;
-
       const targetYaw = Math.atan2(-dx, -dz);
       const targetPitch = Math.atan2(dy, Math.sqrt(dx*dx + dz*dz));
-
       let deltaYaw = ((targetYaw - bot.entity.yaw + Math.PI) % (2 * Math.PI)) - Math.PI;
       bot.entity.yaw += Math.sign(deltaYaw) * Math.min(turnSpeed, Math.abs(deltaYaw));
-
       let deltaPitch = targetPitch - bot.entity.pitch;
       bot.entity.pitch += Math.sign(deltaPitch) * Math.min(turnSpeed, Math.abs(deltaPitch));
     }, 200);
@@ -193,24 +191,14 @@ function createBot() {
     if (attackInterval) clearInterval(attackInterval);
     let lastAttackTime = 0;
     const COOLDOWN = 1000;
-    const ATTACK_RANGE = 4;
-
     attackInterval = setInterval(() => {
       if (!bot || !bot.entity || isEating) return;
-
-      const nearbySkeletons = Object.values(bot.entities).filter(e =>
+      const skeleton = Object.values(bot.entities).find(e =>
         e.type === 'mob' && e.name === 'skeleton' &&
-        bot.entity.position.distanceTo(e.position) <= ATTACK_RANGE
+        bot.entity.position.distanceTo(e.position) <= 3
       );
-
-      if (!nearbySkeletons.length) return;
-
-      const nearest = nearbySkeletons.sort((a, b) =>
-        bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position)
-      )[0];
-
-      if (Date.now() - lastAttackTime > COOLDOWN) {
-        bot.attack(nearest, true);
+      if (skeleton && Date.now() - lastAttackTime > COOLDOWN) {
+        bot.attack(skeleton, true);
         attackCount++;
         lastAttackTime = Date.now();
       }
@@ -238,7 +226,7 @@ function createBot() {
   }
 }
 
-// ---- 备用 bot ----
+// ---- 备用 Bot ----
 async function createBackupBot() {
   const backup = mineflayer.createBot({
     host: '87world.aternos.me',
@@ -247,7 +235,7 @@ async function createBackupBot() {
   });
 
   backup.on('spawn', async () => {
-    console.log('［系统］准备派出 sohai_tim2 救场');
+    console.log('［系统］sohai_tim2 加入了游戏');
     await sleep(2000);
     backup.chat('SB aternos');
     await sleep(2000);
@@ -263,5 +251,5 @@ async function createBackupBot() {
   });
 }
 
-// ---- 启动 ----
+// ---- 启动主 Bot ----
 createBot();
