@@ -19,6 +19,11 @@ let attackCount = 0;
 
 const onlinePlayers = new Set();
 
+// ---- 全局 sleep 函数 ----
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // ---- HTTP 保活 ----
 app.get('/', (req, res) => {
   res.send('你妈妈来喽！');
@@ -27,6 +32,7 @@ app.listen(PORT, () => {
   console.log(`[系统] HTTP 服务启动 端口 ${PORT}`);
 });
 
+// ---- 主 bot ----
 function createBot() {
   bot = mineflayer.createBot({
     host: '87world.aternos.me',
@@ -34,10 +40,9 @@ function createBot() {
     username: 'sohai_tim'
   });
 
-  // ---- 上线事件 ----
   bot.on('spawn', () => {
     console.log('［系统］sohai_tim 加入了游戏');
-    failCount = 0; // 成功上线清零
+    failCount = 0;
     startLookLoop();
     startMinecartLoop();
     startAutoEatLoop();
@@ -45,13 +50,11 @@ function createBot() {
     startNightCheckLoop();
   });
 
-  // ---- 错误处理 ----
   bot.on('error', (err) => {
     console.log('［错误］类型:', err.name);
     console.log('［错误］原因:', err.message);
   });
 
-  // ---- 断线重连 ----
   bot.on('end', () => {
     console.log('［系统］sohai_tim 离开了游戏');
 
@@ -63,9 +66,8 @@ function createBot() {
 
     failCount++;
     if (failCount >= 3) {
-      console.log('［系统］准备派出 sohai_tim2 救场');
       createBackupBot(); // 三次失败派出备用
-      failCount = 0; // 重置计数
+      failCount = 0;
       return;
     }
 
@@ -78,7 +80,6 @@ function createBot() {
     }, 10000);
   });
 
-  // ---- 聊天监听 ----
   bot.on('chat', (username, message) => {
     console.log(`［系统］<${username}> ${message}`);
     if (message.toLowerCase() === 'zzz') {
@@ -87,14 +88,12 @@ function createBot() {
     }
   });
 
-  // ---- 玩家加入/离开侦测 ----
   bot.on('message', (msg) => {
     const text = msg.toString();
 
     if (text.includes("joined the game")) {
       const playerName = text.split(" ")[0];
       if (playerName === bot.username) return;
-
       if (!onlinePlayers.has(playerName)) {
         onlinePlayers.add(playerName);
         console.log(`［系统］${playerName} 加入了游戏`);
@@ -110,7 +109,6 @@ function createBot() {
     if (text.includes("left the game")) {
       const playerName = text.split(" ")[0];
       if (playerName === bot.username) return;
-
       if (onlinePlayers.has(playerName)) {
         onlinePlayers.delete(playerName);
         console.log(`［系统］${playerName} 离开了游戏`);
@@ -237,10 +235,6 @@ function createBot() {
       }
       if (!isNight && nightMessageSent) nightMessageSent = false;
     }, 5000);
-  }
-
-  function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 
