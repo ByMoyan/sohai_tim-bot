@@ -238,12 +238,11 @@ function createBackupBot() {
   });
 
   backupBot.on('spawn', async () => {
-    console.log('［系统］sohai_tim2 加入了游戏');
-    await sleep(1000);
+    console.log('［系统］sohai_tim2 加入了游戏')
     backupBot.chat('SB Aternos');
-    await sleep(1000);
+    await sleep(2000);
     backupBot.chat('/pardon sohai_tim');
-    await sleep(1000);
+    await sleep(2000);
     backupBot.chat('溜了 白白！');
     setTimeout(() => backupBot.end(), 2000);
   });
