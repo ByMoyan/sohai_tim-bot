@@ -5,6 +5,7 @@ const PORT = process.env.PORT || 10000;
 
 let bot = null;
 let hasLoggedReconnect = false;
+let failCount = 0; // 失败计数
 
 let attackInterval = null;
 let lookInterval = null;
@@ -36,6 +37,7 @@ function createBot() {
   // ---- 上线事件 ----
   bot.on('spawn', () => {
     console.log('［系统］sohai_tim 加入了游戏');
+    failCount = 0; // 成功上线清零
     startLookLoop();
     startMinecartLoop();
     startAutoEatLoop();
@@ -52,13 +54,20 @@ function createBot() {
   // ---- 断线重连 ----
   bot.on('end', () => {
     console.log('［系统］sohai_tim 离开了游戏');
-    hasLoggedReconnect = false;
 
     // 清理循环
     if (attackInterval) clearInterval(attackInterval);
     if (lookInterval) clearInterval(lookInterval);
     if (minecartInterval) clearInterval(minecartInterval);
     if (nightInterval) clearInterval(nightInterval);
+
+    failCount++;
+    if (failCount >= 3) {
+      console.log('［系统］准备派出 sohai_tim2 救场');
+      createBackupBot(); // 三次失败派出备用
+      failCount = 0; // 重置计数
+      return;
+    }
 
     setTimeout(() => {
       if (!hasLoggedReconnect) {
@@ -233,6 +242,31 @@ function createBot() {
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
+}
+
+// ---- 备用 bot ----
+async function createBackupBot() {
+  const backup = mineflayer.createBot({
+    host: '87world.aternos.me',
+    port: 15945,
+    username: 'sohai_tim2'
+  });
+
+  backup.on('spawn', async () => {
+    console.log('［系统］准备派出 sohai_tim2 救场');
+    await sleep(2000);
+    backup.chat('SB aternos');
+    await sleep(2000);
+    backup.chat('/pardon sohai_tim');
+    await sleep(2000);
+    backup.chat('溜了 白白！');
+    await sleep(2000);
+    backup.end();
+  });
+
+  backup.on('end', () => {
+    console.log('［系统］sohai_tim2 离开了游戏');
+  });
 }
 
 // ---- 启动 ----
