@@ -38,6 +38,7 @@ function createBot() {
   // ---- 上线事件 ----
   bot.on('spawn', () => {
     console.log('［系统］sohai_tim 加入了游戏');
+    reconnectAttempts = 0;
     startLookLoop();
     startMinecartLoop();
     startAutoEatLoop();
@@ -241,7 +242,7 @@ function createBackupBot() {
     await sleep(1000);
     backupBot.chat('SB Aternos');
     await sleep(1000);
-    backupBot.chat('/pradon sohai_tim');
+    backupBot.chat('/pardon sohai_tim');
     await sleep(1000);
     backupBot.chat('溜了 白白！');
     setTimeout(() => backupBot.end(), 2000);
