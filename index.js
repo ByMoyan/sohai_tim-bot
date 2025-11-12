@@ -30,8 +30,8 @@ app.listen(PORT, () => {
 
 function createBot() {
   bot = mineflayer.createBot({
-    host: '87world.aternos.me',
-    port: 15945,
+    host: '87666test.aternos.me',
+    port: 16957,
     username: 'sohai_tim'
   });
 
