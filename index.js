@@ -31,7 +31,6 @@ app.listen(PORT, () => {
 function createBot() {
   bot = mineflayer.createBot({
     host: '87world.aternos.me',
-    port: 15945,
     username: 'sohai_tim'
   });
 
@@ -233,7 +232,6 @@ function createBot() {
 function createBackupBot() {
   backupBot = mineflayer.createBot({
     host: '87world.aternos.me',
-    port: 15945,
     username: 'sohai_tim2'
   });
 
